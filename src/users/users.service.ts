@@ -15,7 +15,7 @@ export class UsersService {
     return this.userRepository.find();
   }
 
-  getUserById(id: number): Promise<User> {
+  async getUserById(id: number): Promise<User> {
     return this.userRepository.findOne(id);
   }
 
