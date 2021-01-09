@@ -6,81 +6,74 @@ import {
 } from '@nestjs/common';
 import { Task } from '../entities/tenant/task.entity';
 import { CreateTaskDto } from './dto/create-task.dto';
-import {
-  Connection,
-  InsertResult,
-  Repository,
-} from 'typeorm';
+import { Connection, Repository } from 'typeorm';
+import * as sql from 'sql-mysql';
 
 @Injectable()
 export class TasksService {
   private taskRepository: Repository<Task>;
-  private readonly database: string | Uint8Array;
-  private readonly tableName: string;
 
   constructor(@Inject('CONNECTION') connection: Connection) {
     this.taskRepository = connection.getRepository(Task);
-    this.database = connection.options.database;
-    this.tableName = this.taskRepository.metadata.tableName;
   }
 
   async getTasks(): Promise<Task[]> {
-    return await this.taskRepository.query(`select * from task`);
+    try {
+      return await this.taskRepository.query(sql`
+        SELECT * FROM task`);
+    } catch (err) {
+      throw new InternalServerErrorException();
+    }
   }
 
   async getTask(id: number): Promise<Task> {
-    const names = await this.taskRepository.query(`
-      SELECT \`COLUMN_NAME\` 
-      FROM \`INFORMATION_SCHEMA\`.\`COLUMNS\` 
-      WHERE \`TABLE_SCHEMA\`='${this.database}' 
-      AND \`TABLE_NAME\`='${this.tableName}';`);
-
-    const columnNames = JSON.parse(JSON.stringify(names)).map((column) => {
-      return `${this.tableName}.${column.COLUMN_NAME}`;
-    });
-
-    return await this.taskRepository
-      .createQueryBuilder('task')
-      .select(columnNames)
-      .where('task.id = :id', { id })
-      .getOne();
+    const condition = { id: id };
+    try {
+      return await this.taskRepository.query(sql`
+      SELECT * FROM task 
+      WHERE ${sql.conditions(condition)}
+    `);
+    } catch (err) {
+      throw new InternalServerErrorException();
+    }
   }
 
-  async createTask(taskDto: CreateTaskDto): Promise<InsertResult> {
-    const { name } = taskDto;
+  async createTask(taskDto: CreateTaskDto): Promise<Task> {
     try {
-      return await this.taskRepository
-        .createQueryBuilder()
-        .insert()
-        .into(Task)
-        .values({ name: name })
-        .execute();
+      const result = await this.taskRepository.query(sql`
+        INSERT INTO task (${sql.keys(taskDto)})
+        VALUES (${sql.values(taskDto)})
+      `);
+
+      return await this.getTask(result.insertId);
     } catch (err) {
-      throw new InternalServerErrorException(err);
+      throw new InternalServerErrorException();
     }
   }
 
   async deleteTask(id: number): Promise<void> {
-    const result = await this.taskRepository.delete({ id });
-    if (result.affected === 0) {
-      throw new NotFoundException(`
-  Task
-  with
-  "${id}"
-  not
-  found
-`);
+    const condition = { id: id };
+    const result = await this.taskRepository.query(sql`
+      DELETE FROM task WHERE ${sql.conditions(condition)}
+    `);
+
+    if (result.affectedRows === 0) {
+      throw new NotFoundException(`Task with "${id}" not found`);
     }
   }
 
   async updateTask(id: number, taskDto: CreateTaskDto): Promise<Task> {
-    const { name } = taskDto;
-    try {
-      const task = await this.taskRepository.findOne(id);
-      task.name = name;
-      return await task.save();
-    } catch (err) {
-      throw new InternalServerErrorException();
+    const condition = { id: id };
+
+    const result = await this.taskRepository.query(sql`
+      UPDATE task SET ${sql.assignments(taskDto)} 
+      WHERE ${sql.conditions(condition)}
+    `);
+
+    if (result.affectedRows === 0) {
+      throw new NotFoundException(`Task with "${id}" not found`);
     }
+
+    return await this.getTask(id);
   }
 }
