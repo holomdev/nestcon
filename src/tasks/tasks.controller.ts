@@ -12,7 +12,8 @@ import {
 } from '@nestjs/common';
 import { TasksService } from './tasks.service';
 import { CreateTaskDto } from './dto/create-task.dto';
-import { Task } from './task.entity';
+import { Task } from '../entities/tenant/task.entity';
+import { InsertResult } from 'typeorm';
 
 @Controller('tasks')
 export class TasksController {
@@ -30,7 +31,7 @@ export class TasksController {
 
   @Post()
   @UsePipes(ValidationPipe)
-  createTask(@Body() taskDto: CreateTaskDto): Promise<Task> {
+  createTask(@Body() taskDto: CreateTaskDto): Promise<InsertResult> {
     return this.taskService.createTask(taskDto);
   }
 
