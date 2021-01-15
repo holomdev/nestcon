@@ -6,16 +6,12 @@ import {
 } from '@nestjs/common';
 import { Task } from '../entities/tenant/task.entity';
 import { CreateTaskDto } from './dto/create-task.dto';
-import { Connection, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import * as sql from 'sql-mysql';
 
 @Injectable()
 export class TasksService {
-  private taskRepository: Repository<Task>;
-
-  constructor(@Inject('CONNECTION') connection: Connection) {
-    this.taskRepository = connection.getRepository(Task);
-  }
+  constructor(@Inject('TASK') private taskRepository: Repository<Task>) {}
 
   async getTasks(): Promise<Task[]> {
     try {
@@ -34,7 +30,7 @@ export class TasksService {
       WHERE ${sql.conditions(condition)}
     `);
     } catch (err) {
-      throw new InternalServerErrorException();
+      throw new InternalServerErrorException(err);
     }
   }
 
